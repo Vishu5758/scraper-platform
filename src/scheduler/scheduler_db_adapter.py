@@ -275,14 +275,22 @@ def fetch_runs_with_stats(source: Optional[str] = None, tenant_id: Optional[str]
     
     # Add tenant filter if tenant_id column exists
     try:
+        if "." in RUNS_TABLE:
+            table_schema, table_name = RUNS_TABLE.split(".", 1)
+        else:
+            table_schema, table_name = "public", RUNS_TABLE
+
         with conn.cursor() as check_cur:
-            check_cur.execute("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_schema = 'scraper' 
-                AND table_name = 'runs' 
+            check_cur.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = %s
+                AND table_name = %s
                 AND column_name = 'tenant_id'
-            """)
+                """,
+                (table_schema, table_name),
+            )
             has_tenant_id = check_cur.fetchone() is not None
         
         if has_tenant_id:
