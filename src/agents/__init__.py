@@ -5,6 +5,17 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from src.common.logging_utils import get_logger
 
+from .agent_framework import (
+    AgentContext,
+    AgentOrchestrator,
+    AgentRegistry,
+    AgentResult,
+    BaseAgent,
+    ReplayValidationAgent,
+    SelectorRepairAgent,
+    VolumeDriftAgent,
+    build_example_news_pipeline,
+)
 from .llm import NoOpLLM
 from .patch_proposer import SelectorPatch, propose_noop_patch
 from .replay_validator import ReplayFailure, validate_replay_results
@@ -102,4 +113,13 @@ __all__ = [
     "SelectorPatch",
     "SelectorDiff",
     "NoOpLLM",
+    "AgentContext",
+    "AgentResult",
+    "BaseAgent",
+    "AgentRegistry",
+    "AgentOrchestrator",
+    "VolumeDriftAgent",
+    "SelectorRepairAgent",
+    "ReplayValidationAgent",
+    "build_example_news_pipeline",
 ]
