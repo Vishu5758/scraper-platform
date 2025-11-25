@@ -16,6 +16,7 @@ chromadb
 cryptography
 psycopg2-binary
 groq
+openpyxl
 
 # testing
 pytest
