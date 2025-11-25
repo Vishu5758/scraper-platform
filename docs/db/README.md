@@ -1,25 +1,27 @@
-# DB schema for scraper-platform-v4.9
+# Database Notes
 
-Migrations in this directory define the core tables for runs, sessions, drift events,
-quality checks, and replay testing needed by scraper-platform v4.9. Apply them in
-numeric order to initialize a new environment.
+The platform relies on database helpers in `src/db` to manage connections, migrations, and ORM models. This guide outlines how to configure local and production databases safely.
 
-Migrations should appear in the following order:
+## Local development
 
-001_init.sql
-002_scraper_runs.sql
-003_drift_events.sql
-004_data_quality.sql
-005_incidents.sql
-006_cost_tracking.sql
-007_source_health_daily.sql
-008_proxy_site_status.sql
-009_pcid_master.sql
-010_schema_signatures.sql
-011_change_log.sql
-012_scraper_sessions.sql
-013_scraper_session_events.sql
-014_data_versioning.sql
-015_data_contracts.sql
-016_replay_testing.sql
-017_add_fk_indexes.sql
+- Databases are provisioned via Docker Compose; connection strings are exposed as environment variables consumed by `src/db`.
+- Apply any seed scripts in `scripts/` or `tools/` after services start to ensure reference data exists.
+- If you adjust models or migrations, run them against the local database before opening a PR to catch contract issues early.
+
+## Configuration
+
+- Set database URLs, usernames, and passwords via environment variables (`DB_HOST`, `DB_USER`, `DB_PASSWORD`, etc.).
+- Connection pooling and timeouts should be tuned via configuration helpers in `src/config` and `src/db` to avoid resource exhaustion.
+- Keep credentials outside of the repository; use secret managers or environment injection in CI/CD pipelines.
+
+## Migrations and schema changes
+
+- Store migration scripts alongside the codebase (e.g., in `scripts/` or a migrations directory) and execute them before enabling schedulers.
+- Align schema versions between Airflow environments and the API service to prevent runtime failures.
+- When schemas change, update related validators in `schemas/` and downstream exporters to keep payloads compatible.
+
+## Backups and observability
+
+- Configure automated backups for production databases and test restore procedures regularly.
+- Enable query logging or metrics where supported to monitor slow queries and connection usage.
+- Audit trails recorded via `src/audit` should land in durable storage with retention policies that match compliance needs.

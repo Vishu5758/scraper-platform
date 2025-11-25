@@ -1,56 +1,61 @@
-# scraper-platform v5.0 scaffold
+# Scraper Platform Documentation
 
-This repository contains the v5.0-ready scaffold for the scraper platform, including backend services, agentic repair utilities, and a Vite/React dashboard.
+This documentation set provides an operator- and developer-focused reference for running, extending, and observing the scraper platform. The goal is to give newcomers enough context to contribute safely while offering production checklists for practitioners.
 
-## Layout
-- Backend services and shared modules live in `src/`.
-- Airflow DAGs live in `dags/`.
-- Configuration resides in `config/` (env overlays, sources, logging).
-- Frontend dashboard code is under `frontend-dashboard/` (Vite + React + TS).
-- Database migrations live in `db/migrations/`.
-- CLI and operational helpers live in `tools/`.
+## What the platform does
 
-## Getting started
+The platform coordinates ingestion, scraping, enrichment, and delivery pipelines. Core capabilities include:
 
-### Linux/Unix
-1. Copy `.env.example` to `.env` and adjust secrets.
-2. Install Python deps: `pip install -r requirements.txt`.
-3. (Optional) Install frontend deps: `cd frontend-dashboard && npm install`.
-4. Run API locally: `uvicorn src.api.app:app --reload --host 0.0.0.0 --port 8000`.
-5. Run frontend: `npm run dev -- --host --port 4173` from `frontend-dashboard/`.
-6. Or use the setup script: `chmod +x scripts/setup_and_run_alfabeta.sh && ./scripts/setup_and_run_alfabeta.sh`
+- **Task orchestration** for scheduled and ad-hoc jobs, with retry, backoff, and dependency handling.
+- **Scraper execution** using headless browsers or HTTP clients with pluggable engines for site-specific logic.
+- **Data governance** through auditing, compliance hooks, and validation gates before payloads are exported.
+- **APIs and dashboard** that expose controls, status, and telemetry to internal consumers.
 
-### Windows
-1. Copy `.env.example` to `.env` and adjust secrets.
-2. Install Python deps: `pip install -r requirements.txt`.
-3. (Optional) Install frontend deps: `cd frontend-dashboard && npm install`.
-4. Run API locally: `uvicorn src.api.app:app --reload --host 0.0.0.0 --port 8000`.
-5. Run frontend: `npm run dev -- --host --port 4173` from `frontend-dashboard/`.
-6. Or use the setup script: `scripts/setup_and_run_alfabeta.bat`
+## Repository layout (high level)
 
-## Dependency files
+- `src/` – Primary Python packages for orchestration, scrapers, data validation, exporters, and integrations.
+- `frontend-dashboard/` – React/Vite dashboard used for monitoring runs, configuring scrapers, and triggering jobs.
+- `schemas/` – Shared schema definitions that shape API payloads and internal contracts.
+- `dags/` – Airflow DAG definitions that compose pipelines using the same primitives as the Python packages.
+- `docker/` and `docker-compose*.yml` – Container build assets and local orchestration for parity with production.
+- `tests/` – Automated tests for backend logic, schemas, and integrations.
+- `tools/`, `scripts/`, `dsl/` – Utility scripts, CLI helpers, and DSL assets for generating or seeding configuration.
+- `docs/` – This documentation set plus subsystem-specific guidance under `docs/db` and feature folders.
 
-This repository intentionally ships two `requirements.txt` files:
+## Getting started (development)
 
-- `scraper-deps/requirements.txt` contains the lightweight, crawler-centric dependencies shared by Airflow DAGs and headless scraper jobs (e.g., Selenium, BeautifulSoup, YAML parsing). Keeping this list separate makes it easy to install just the scraper stack when running workers independently of the API or dashboard.
-- The root-level `requirements.txt` includes `-r scraper-deps/requirements.txt` and adds API-facing and testing dependencies (e.g., FastAPI, uvicorn, pytest, LangGraph). Use this file when you want the full platform environment for local development or CI.
+1. **Set up Python**
+   - Use Python 3.10+ with a virtual environment.
+   - Install core dependencies and optional extras:
+     ```bash
+     pip install -e .
+     pip install -r scraper-deps/requirements.txt
+     ```
+2. **Start supporting services**
+   - Bring up databases, queues, and Airflow locally:
+     ```bash
+     docker-compose up -d
+     ```
+   - Environment variables in `.env` or your shell configure connection strings for modules in `src/db`, `src/config`, and `src/security`.
+3. **Run backend entrypoints**
+   - Use the service entrypoints in `src/entrypoints` to start APIs or worker processes.
+   - Run the scheduler/orchestrator for recurring jobs, and use CLI tools in `scripts/` for manual triggers.
+4. **Launch the dashboard**
+   - From `frontend-dashboard`, install dependencies and start the dev server:
+     ```bash
+     npm install
+     npm run dev
+     ```
+   - Configure API base URLs via `.env.local` files in the dashboard root.
+5. **Validate changes**
+   - Execute backend tests: `pytest` from the repository root.
+   - Run linting or type checks if configured in `pyproject.toml`/`setup.cfg`.
 
-Keeping the scraper dependencies modular avoids bundling unnecessary packages into scraper-only deployments while still allowing a single command to install everything for end-to-end development.
+## Operating guidance
 
-## Audit event exports
-- Export matching audit events (all rows, no pagination) via `GET /api/audit/export`.
-- Supported formats: `csv`, `xlsx`, `json` (set with the `format` query param).
-- Filters mirror the dashboard view: `event_type`, `source`, and `run_id`, and the endpoint enforces `X-Tenant-Id` scoping.
-- Requests exceeding 50k rows return a clear 413 response prompting users to narrow the range.
-- Responses include `Content-Disposition` headers so the dashboard can trigger downloads with sensible filenames.
+- **Credentials and secrets**: inject via environment variables or secret managers; do not commit them. Modules in `src/security` and `src/config` expect external provisioning.
+- **Observability**: logging/metrics hooks live in `src/observability` and `src/run_tracking`. Configure sinks (e.g., Prometheus, OpenTelemetry) before production rollout.
+- **Validation**: schemas under `schemas/` and validators in `src/validation` enforce payload quality; keep them in sync with API changes.
+- **Extensibility**: add new scrapers under `src/scrapers` and register them with orchestrators or DAGs. Integrations and plugins belong in `src/integrations` or `src/plugins`.
 
-## Docker
-- `docker-compose.yml` runs the API with Postgres and Redis.
-- `docker-compose.dashboard.yml` runs the frontend dashboard separately and forwards Vite dev server output.
-
-Refer to:
-- `CODEX.md` - Full platform specification
-- `GAP_TO_V5.md` - Production-readiness items
-- `LINUX_DEPLOYMENT.md` - Linux server deployment guide
-- `END_TO_END_VALIDATION.md` - System validation report
-- `GIT_CONFLICT_CHECK.md` - Git conflict status
+Refer to the architecture, deployment, frontend, and database documents in this folder for deeper guidance on each subsystem.
