@@ -80,6 +80,48 @@ def test_orchestrator_parallel_block_merges_results():
     assert "parallel_results" in result.metadata
 
 
+class MetadataAgent(BaseAgent):
+    def __init__(self, name: str, *, value: Any, metadata_value: Any):
+        super().__init__(name=name, config=AgentConfig())
+        self.value = value
+        self.metadata_value = metadata_value
+
+    def run(self, context: AgentContext) -> AgentContext:
+        context[self.name] = self.value
+        context.metadata[self.name] = self.metadata_value
+        return context
+
+
+def test_orchestrator_parallel_preserves_metadata():
+    registry = AgentRegistry()
+    registry.register_factory(
+        "meta_a", lambda: MetadataAgent("meta_a", value=1, metadata_value={"source": "a"})
+    )
+    registry.register_factory(
+        "meta_b", lambda: MetadataAgent("meta_b", value=2, metadata_value={"source": "b"})
+    )
+
+    pipelines = {
+        "sources": {
+            "demo": {
+                "pipeline": [
+                    {"parallel": [{"agent": "meta_a"}, {"agent": "meta_b"}]},
+                ]
+            }
+        }
+    }
+    orchestrator = AgentOrchestrator(registry, pipelines)
+    ctx = AgentContext()
+
+    result = orchestrator.run_pipeline("demo", ctx)
+
+    assert result.metadata.get("meta_a") == {"source": "a"}
+    assert result.metadata.get("meta_b") == {"source": "b"}
+    parallel_results = result.metadata.get("parallel_results", {})
+    assert parallel_results[0]["metadata"]["meta_a"] == {"source": "a"}
+    assert parallel_results[1]["metadata"]["meta_b"] == {"source": "b"}
+
+
 def test_orchestrator_ensemble_picks_best_score():
     registry = AgentRegistry()
     registry.register_factory("low", lambda: DummyAgent("low", value="low", score=1))

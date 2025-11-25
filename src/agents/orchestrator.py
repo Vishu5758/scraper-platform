@@ -56,20 +56,25 @@ class AgentOrchestrator:
         return updated
 
     def _run_parallel(self, block: Iterable[Mapping[str, Any]], context: AgentContext) -> AgentContext:
-        log.info("Running parallel block with %d agents", len(list(block)))
-        results: list[AgentContext] = []
+        steps = list(block)
+        log.info("Running parallel block with %d agents", len(steps))
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            futures = [
-                executor.submit(self._run_agent, step["agent"], context.copy())
-                for step in block
-            ]
-            for future in concurrent.futures.as_completed(futures):
-                results.append(future.result())
+            futures = {
+                executor.submit(self._run_agent, step["agent"], context.copy()): idx
+                for idx, step in enumerate(steps)
+            }
 
         merged = context.copy()
-        for idx, result in enumerate(results):
+        parallel_results = merged.metadata.setdefault("parallel_results", {})
+        for future in concurrent.futures.as_completed(futures):
+            idx = futures[future]
+            result = future.result()
             merged.merge(result)
-            merged.metadata.setdefault("parallel_results", {})[idx] = dict(result)
+            merged.metadata.update(result.metadata)
+            parallel_results[idx] = {
+                "data": dict(result),
+                "metadata": dict(result.metadata),
+            }
         return merged
 
     def _run_ensemble(self, block: Mapping[str, Any], context: AgentContext) -> AgentContext:
