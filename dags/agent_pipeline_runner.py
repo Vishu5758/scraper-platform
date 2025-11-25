@@ -1,7 +1,9 @@
 """Airflow DAG to execute agent pipelines defined in config/agents/pipelines.yaml."""
 from __future__ import annotations
 
+import json
 import os
+from typing import Mapping
 from datetime import timedelta
 
 from airflow import DAG
@@ -28,7 +30,24 @@ def _run_pipeline(**context):
     )
 
     result = run_configured_pipeline(source, env=env, initial_context=initial_ctx)
-    return {"context": dict(result), "metadata": result.metadata}
+
+    return {
+        "context": _json_safe_payload(result),
+        "metadata": _json_safe_payload(result.metadata),
+    }
+
+
+def _json_safe_payload(payload: Mapping[str, object]) -> dict:
+    """Ensure returned payload is JSON-serializable for the XCom backend."""
+
+    safe: dict[str, str | int | float | bool | list | dict | None] = {}
+    for key, value in payload.items():
+        try:
+            json.dumps(value)
+            safe[key] = value  # type: ignore[assignment]
+        except (TypeError, ValueError):
+            safe[key] = str(value)
+    return safe
 
 
 def _default_args():
