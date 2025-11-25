@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, asdict
-from datetime import datetime
+from dataclasses import dataclass, asdict, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 import sqlite3
@@ -26,7 +26,7 @@ class CostRecord:
     compute_cost_usd: float = 0.0
     other_cost_usd: float = 0.0
     currency: str = "USD"
-    created_at: str = datetime.utcnow().isoformat()
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     @property
     def total_usd(self) -> float:
