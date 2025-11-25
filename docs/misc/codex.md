@@ -1,6 +1,6 @@
 # Coding Codex
 
-This codex summarizes conventions for the scraper platform codebase. When in doubt, prefer the style guides in `docs/README.md` and component-specific READMEs.
+This codex summarizes conventions for the scraper platform codebase. When in doubt, prefer the style guides in `docs/misc/documentation_index.md` and component-specific READMEs.
 
 ## Conventions
 - Use type hints across new Python modules.

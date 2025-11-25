@@ -1,7 +1,7 @@
 # FAQ
 
 **Where is the main documentation index?**
-See `docs/README.md` for a categorized map of all guides.
+See `docs/misc/documentation_index.md` for a categorized map of all guides.
 
 **Which orchestrator should I use?**
 Use the legacy orchestrator for production and treat the pipeline-pack as experimental until browser engines are complete.
