@@ -28,6 +28,15 @@ This repository contains the v5.0-ready scaffold for the scraper platform, inclu
 5. Run frontend: `npm run dev -- --host --port 4173` from `frontend-dashboard/`.
 6. Or use the setup script: `scripts/setup_and_run_alfabeta.bat`
 
+## Dependency files
+
+This repository intentionally ships two `requirements.txt` files:
+
+- `scraper-deps/requirements.txt` contains the lightweight, crawler-centric dependencies shared by Airflow DAGs and headless scraper jobs (e.g., Selenium, BeautifulSoup, YAML parsing). Keeping this list separate makes it easy to install just the scraper stack when running workers independently of the API or dashboard.
+- The root-level `requirements.txt` includes `-r scraper-deps/requirements.txt` and adds API-facing and testing dependencies (e.g., FastAPI, uvicorn, pytest, LangGraph). Use this file when you want the full platform environment for local development or CI.
+
+Keeping the scraper dependencies modular avoids bundling unnecessary packages into scraper-only deployments while still allowing a single command to install everything for end-to-end development.
+
 ## Docker
 - `docker-compose.yml` runs the API with Postgres and Redis.
 - `docker-compose.dashboard.yml` runs the frontend dashboard separately and forwards Vite dev server output.
