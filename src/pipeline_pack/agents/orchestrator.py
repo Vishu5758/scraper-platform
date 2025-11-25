@@ -6,13 +6,13 @@ import os
 import yaml
 
 from .base import AgentContext
-from .registry import run_pipeline
+from .registry import register_default_agents, run_pipeline
 
 logger = logging.getLogger(__name__)
 
 
 def _config_base_dir() -> str:
-    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
 
 def load_agent_config() -> Dict[str, Any]:
@@ -42,6 +42,7 @@ def run_configured_pipeline(
         setattr(ctx, k, v)
 
     logger.info("Running configured pipeline for source=%s env=%s", source, env)
+    register_default_agents()
     ctx = run_pipeline(pipeline, ctx, default_agent_config=defaults)
     return ctx
 
