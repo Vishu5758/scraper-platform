@@ -43,7 +43,7 @@ def run_pipeline(
 
     default_agent_config = default_agent_config or {}
     for step in pipeline:
-        agent_name = step["name"]
+        agent_name = step.get("name") or step.get("agent")
         cfg = {**default_agent_config, **step.get("config", {})}
         agent = AgentRegistry.build(agent_name, **cfg)
         logger.info("Running pipeline step: %s", agent_name)
