@@ -37,6 +37,13 @@ This repository intentionally ships two `requirements.txt` files:
 
 Keeping the scraper dependencies modular avoids bundling unnecessary packages into scraper-only deployments while still allowing a single command to install everything for end-to-end development.
 
+## Audit event exports
+- Export matching audit events (all rows, no pagination) via `GET /api/audit/export`.
+- Supported formats: `csv`, `xlsx`, `json` (set with the `format` query param).
+- Filters mirror the dashboard view: `event_type`, `source`, and `run_id`, and the endpoint enforces `X-Tenant-Id` scoping.
+- Requests exceeding 50k rows return a clear 413 response prompting users to narrow the range.
+- Responses include `Content-Disposition` headers so the dashboard can trigger downloads with sensible filenames.
+
 ## Docker
 - `docker-compose.yml` runs the API with Postgres and Redis.
 - `docker-compose.dashboard.yml` runs the frontend dashboard separately and forwards Vite dev server output.
