@@ -480,42 +480,104 @@ def fetch_runs_with_stats(source: Optional[str] = None, tenant_id: Optional[str]
         source: Optional source filter
         tenant_id: Optional tenant_id for isolation (defaults to 'default')
     """
+    if not _is_db_enabled():
+        effective_tenant = _resolve_tenant_id(tenant_id)
+        if _use_sqlite():
+            _ensure_schema()
+            conn = _get_sqlite_conn()
+            cur = conn.cursor()
+            query = """
+                SELECT run_id, source, tenant_id, status, started_at, finished_at, duration_seconds, stats, metadata
+                FROM runs
+            """
+            params: List[object] = []
+            where_clauses = []
+
+            if effective_tenant:
+                where_clauses.append("tenant_id = ?")
+                params.append(effective_tenant)
+
+            if source:
+                where_clauses.append("source = ?")
+                params.append(source)
+
+            if where_clauses:
+                query += " WHERE " + " AND ".join(where_clauses)
+
+            query += " ORDER BY started_at DESC"
+            cur.execute(query, params)
+            rows = cur.fetchall()
+            return [
+                RunStatsRow(
+                    run_id=row[0],
+                    source=row[1],
+                    status=row[3],
+                    started_at=datetime.fromisoformat(row[4]),
+                    finished_at=datetime.fromisoformat(row[5]) if row[5] else None,
+                    duration_seconds=row[6],
+                    stats=json.loads(row[7]) if row[7] else None,
+                    metadata=json.loads(row[8]) if row[8] else None,
+                )
+                for row in rows
+            ]
+
+        rows = [
+            row
+            for row in _MEM_RUNS.values()
+            if (row.get("tenant_id") == effective_tenant or effective_tenant is None)
+            and (row.get("source") == source if source else True)
+        ]
+        rows.sort(key=lambda r: r.get("started_at"), reverse=True)
+        return [
+            RunStatsRow(
+                run_id=row["run_id"],
+                source=row["source"],
+                status=row["status"],
+                started_at=row["started_at"],
+                finished_at=row.get("finished_at"),
+                duration_seconds=row.get("duration_seconds"),
+                stats=row.get("stats"),
+                metadata=row.get("metadata"),
+            )
+            for row in rows
+        ]
+
     _ensure_schema()
     conn = db.get_conn()
     effective_tenant_id = tenant_id or "default"
-    
+
     query = f"""
         SELECT run_id, source, status, started_at, finished_at, duration_seconds, stats, metadata
         FROM {RUNS_TABLE}
     """
     params: List[object] = []
     where_clauses = []
-    
+
     # Add tenant filter if tenant_id column exists
     try:
         with conn.cursor() as check_cur:
             check_cur.execute("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_schema = 'scraper' 
-                AND table_name = 'runs' 
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'scraper'
+                AND table_name = 'runs'
                 AND column_name = 'tenant_id'
             """)
             has_tenant_id = check_cur.fetchone() is not None
-        
+
         if has_tenant_id:
             where_clauses.append("tenant_id = %s")
             params.append(effective_tenant_id)
     except Exception:
         pass  # If check fails, assume no tenant_id column
-    
+
     if source:
         where_clauses.append("source = %s")
         params.append(source)
-    
+
     if where_clauses:
         query += " WHERE " + " AND ".join(where_clauses)
-    
+
     query += " ORDER BY started_at DESC"
 
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
