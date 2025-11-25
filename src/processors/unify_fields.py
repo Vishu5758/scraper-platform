@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import Dict
+from typing import Any, Dict
 
 from src.core_kernel.models import NormalizedRecord, RawRecord
 
 
-def unify_record(raw: RawRecord | Dict) -> NormalizedRecord:
+def unify_record(raw: RawRecord | Dict) -> Dict[str, Any]:
     """Normalize a raw extracted record into the canonical format.
 
     Args:
@@ -20,7 +20,7 @@ def unify_record(raw: RawRecord | Dict) -> NormalizedRecord:
     raw_price = raw_model.price
     price = float(raw_price) if raw_price is not None else None
 
-    return NormalizedRecord(
+    normalized = NormalizedRecord(
         product_url=product_url,
         name=raw_model.name,
         price=price,
@@ -28,3 +28,5 @@ def unify_record(raw: RawRecord | Dict) -> NormalizedRecord:
         company=raw_model.company,
         source=raw_model.source,
     )
+
+    return normalized.model_dump()

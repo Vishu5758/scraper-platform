@@ -20,12 +20,22 @@ def get_runs(
     tenant_id: str | None = Header(default=None, alias="X-Tenant-Id"),
 ) -> list[RunSummary]:
     """Return a paginated list of recent scraper runs."""
+
+    # When called directly (outside FastAPI), the defaults are Query/Header objects;
+    # normalize them to plain values for compatibility with tests and scripts.
+    if not isinstance(tenant_id, (str, type(None))):
+        tenant_id = None
+
     return list_runs_paginated(limit=limit, offset=offset, tenant_id=tenant_id)
 
 
 @router.get("/{run_id}", response_model=RunDetail)
 def get_run(run_id: str, tenant_id: str | None = Header(default=None, alias="X-Tenant-Id")) -> RunDetail:
     """Return run detail for a specific run id."""
+
+    if not isinstance(tenant_id, (str, type(None))):
+        tenant_id = None
+
     detail = get_run_detail(run_id, tenant_id=tenant_id)
     if not detail:
         raise HTTPException(status_code=404, detail=f"Run {run_id} not found")

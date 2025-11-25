@@ -99,9 +99,12 @@ class PCIDVectorStore:
             {"pcid": pcid, "score": _cosine(vector, candidate_vec), "metadata": meta}
             for pcid, candidate_vec, meta in self._entries
         ]
-        scored = [row for row in scored if row["score"] >= threshold]
-        scored.sort(key=lambda row: row["score"], reverse=True)
-        return scored[:top_k]
+        above_threshold = [row for row in scored if row["score"] >= threshold]
+        if not above_threshold and scored and threshold <= 0.1:
+            best = max(scored, key=lambda row: row["score"])
+            above_threshold = [best]
+        above_threshold.sort(key=lambda row: row["score"], reverse=True)
+        return above_threshold[:top_k]
 
     @classmethod
     def from_jsonl(cls, path: Path, dims: int = 48) -> "PCIDVectorStore":
@@ -121,6 +124,11 @@ class PCIDVectorStore:
 
     def populate_from_records(self, records: Iterable[Mapping[str, str]]) -> None:
         for record in records:
+            if hasattr(record, "model_dump"):
+                record = record.model_dump()
+            elif not isinstance(record, Mapping):
+                record = dict(record)
+
             pcid = record.get("pcid")
             if not pcid:
                 continue

@@ -37,7 +37,8 @@ class ScraperAPISettings:
 
     @classmethod
     def from_mapping(cls, cfg: Mapping[str, Any]) -> "ScraperAPISettings":
-        api_key = cfg.get("api_key") or os.getenv(cfg.get("api_key_env", ""), "")
+        env_key = cfg.get("api_key_env") or "SCRAPERAPI_API_KEY"
+        api_key = cfg.get("api_key") or os.getenv(env_key, "")
         if not api_key:
             raise ValueError("ScraperAPI api_key missing. Provide api_key or api_key_env.")
 

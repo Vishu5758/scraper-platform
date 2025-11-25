@@ -3,12 +3,19 @@ from __future__ import annotations
 from datetime import datetime
 import uuid
 from typing import Dict, Optional
+import os
 
 from src.common.logging_utils import get_logger
 from src.scheduler import scheduler_db_adapter as db
 from src.run_tracking.db_session import get_session
 
 log = get_logger("run-tracking")
+
+
+def _is_db_enabled() -> bool:
+    """Return True when database-backed run tracking should be used."""
+
+    return os.getenv("SCRAPER_PLATFORM_DISABLE_DB") != "1"
 
 
 def _prepare_metadata(metadata: Optional[Dict[str, object]], variant_id: Optional[str]) -> Optional[Dict[str, object]]:
@@ -27,6 +34,10 @@ def start_run(
     tenant_id: Optional[str] = None,
 ) -> str:
     """Record the beginning of a run."""
+
+    if not _is_db_enabled():
+        log.debug("DB disabled; skipping run start persist", extra={"run_id": run_id, "source": source})
+        return run_id
 
     started_at = datetime.utcnow()
     with get_session() as session:
@@ -55,6 +66,10 @@ def finish_run(
     tenant_id: Optional[str] = None,
 ) -> None:
     """Mark a run complete and store summary stats."""
+
+    if not _is_db_enabled():
+        log.debug("DB disabled; skipping run finish persist", extra={"run_id": run_id, "source": source})
+        return
 
     finished_at = datetime.utcnow()
     duration_seconds = None
@@ -93,6 +108,10 @@ def record_step(
 ) -> str:
     """Store a run step for UI visualization."""
 
+    if not _is_db_enabled():
+        log.debug("DB disabled; skipping step persist", extra={"run_id": run_id, "name": name})
+        return f"{run_id}-{uuid.uuid4().hex[:8]}"
+
     started_at = started_at or datetime.utcnow()
     step_id = f"{run_id}-{uuid.uuid4().hex[:8]}"
     with get_session() as session:
@@ -107,3 +126,66 @@ def record_step(
             conn=session.conn,
         )
     return step_id
+
+
+class RunRecorder:
+    """Lightweight helper for recording run lifecycle events."""
+
+    def __init__(self, *, tenant_id: Optional[str] = None) -> None:
+        self.tenant_id = tenant_id
+
+    def start_run(
+        self,
+        run_id: str,
+        source: str,
+        metadata: Optional[Dict[str, object]] = None,
+        *,
+        variant_id: Optional[str] = None,
+    ) -> str:
+        return start_run(
+            run_id=run_id,
+            source=source,
+            metadata=metadata,
+            variant_id=variant_id,
+            tenant_id=self.tenant_id,
+        )
+
+    def finish_run(
+        self,
+        run_id: str,
+        source: str,
+        status: str,
+        *,
+        stats: Optional[Dict[str, object]] = None,
+        metadata: Optional[Dict[str, object]] = None,
+        variant_id: Optional[str] = None,
+        started_at: Optional[datetime] = None,
+    ) -> None:
+        finish_run(
+            run_id=run_id,
+            source=source,
+            status=status,
+            stats=stats,
+            metadata=metadata,
+            variant_id=variant_id,
+            started_at=started_at,
+            tenant_id=self.tenant_id,
+        )
+
+    def record_step(
+        self,
+        run_id: str,
+        name: str,
+        status: str,
+        *,
+        started_at: Optional[datetime] = None,
+        duration_seconds: Optional[int] = None,
+    ) -> str:
+        return record_step(
+            run_id=run_id,
+            name=name,
+            status=status,
+            started_at=started_at,
+            duration_seconds=duration_seconds,
+            tenant_id=self.tenant_id,
+        )

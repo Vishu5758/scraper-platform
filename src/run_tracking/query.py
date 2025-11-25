@@ -16,7 +16,7 @@ from src.scheduler import scheduler_db_adapter as db
 def get_run(run_id: str, *, tenant_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Fetch a single run record by ID."""
 
-    detail = db.fetch_run_detail(run_id, tenant_id=tenant_id)
+    detail = db.fetch_run_detail(run_id, tenant_id=tenant_id) if tenant_id is not None else db.fetch_run_detail(run_id)
     if not detail:
         return None
     return {
@@ -37,7 +37,7 @@ def get_run(run_id: str, *, tenant_id: Optional[str] = None) -> Optional[Dict[st
                 "started_at": step.started_at,
                 "duration_seconds": step.duration_seconds,
             }
-            for step in db.fetch_run_steps(run_id, tenant_id=tenant_id)
+            for step in (db.fetch_run_steps(run_id, tenant_id=tenant_id) if tenant_id is not None else db.fetch_run_steps(run_id))
         ],
     }
 
@@ -100,7 +100,7 @@ def persist_run_and_steps(run_payload: Dict[str, Any], steps: List[Dict[str, Any
 def get_run_steps(run_id: str, *, tenant_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Return structured run steps for downstream APIs."""
 
-    steps = db.fetch_run_steps(run_id, tenant_id=tenant_id)
+    steps = db.fetch_run_steps(run_id, tenant_id=tenant_id) if tenant_id is not None else db.fetch_run_steps(run_id)
     return [
         {
             "step_id": step.step_id,

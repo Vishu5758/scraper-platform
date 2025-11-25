@@ -34,8 +34,8 @@ All changes made during this session are conflict-free:
 ### Platform-Specific Files
 | File | Platform | Status |
 |------|----------|--------|
-| `setup_and_run_alfabeta.bat` | Windows | Optional helper script |
-| `setup_and_run_alfabeta.sh` | Linux | ✅ Created - equivalent script |
+| `scripts/setup_and_run_alfabeta.bat` | Windows | Optional helper script |
+| `scripts/setup_and_run_alfabeta.sh` | Linux | ✅ Created - equivalent script |
 
 ### Linux Deployment Options
 
@@ -49,8 +49,8 @@ docker-compose up -d
 
 #### Option 2: Native Linux Installation ✅
 ```bash
-chmod +x setup_and_run_alfabeta.sh
-./setup_and_run_alfabeta.sh
+chmod +x scripts/setup_and_run_alfabeta.sh
+./scripts/setup_and_run_alfabeta.sh
 ```
 - Direct Python installation
 - Systemd service support
@@ -128,7 +128,7 @@ sudo yum install -y \
 
 ✅ **File Permissions**
 ```bash
-chmod 755 setup_and_run_alfabeta.sh
+chmod 755 scripts/setup_and_run_alfabeta.sh
 chmod -R 755 sessions/ output/ logs/
 ```
 

@@ -134,6 +134,11 @@ def match_pcid_with_confidence(
     normalized_payload = (
         normalized if isinstance(normalized, Mapping) else normalized.model_dump()
     )
+    payload_for_backend = (
+        dict(unified_record)
+        if isinstance(unified_record, Mapping)
+        else (normalized_payload if isinstance(normalized_payload, Mapping) else {})
+    )
     key = _make_key(normalized)
     exact = pcid_index.get(key)
     if exact:
@@ -151,7 +156,7 @@ def match_pcid_with_confidence(
 
     if hasattr(backend, "query_record"):
         matches = backend.query_record(
-            normalized_payload, top_k=1, threshold=min_similarity  # type: ignore[arg-type]
+            payload_for_backend, top_k=1, threshold=min_similarity  # type: ignore[arg-type]
         )
     else:
         dims = getattr(backend, "dims", 48)
@@ -164,8 +169,10 @@ def match_pcid_with_confidence(
     best = matches[0]
     pcid = best.get("pcid") if isinstance(best, Mapping) else None
     score = float(best.get("score", 0.0)) if isinstance(best, Mapping) else 0.0
-    if score < min_similarity or not pcid:
+    if not pcid:
         return None, score
+    if score <= 0:
+        return None, 0.0
     return pcid, score
 
 

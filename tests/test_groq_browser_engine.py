@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from src.engines.groq_browser import GroqBrowserAutomationClient
 
@@ -6,18 +6,16 @@ from src.engines.groq_browser import GroqBrowserAutomationClient
 @dataclass
 class _DummyMessage:
     content: str = "Done"
-    executed_tools: list = None
-
-    def __post_init__(self):
-        if self.executed_tools is None:
-            self.executed_tools = [
-                {"name": "browser_automation", "status": "success", "output": {"summary": "navigated"}}
-            ]
+    executed_tools: list = field(
+        default_factory=lambda: [
+            {"name": "browser_automation", "status": "success", "output": {"summary": "navigated"}}
+        ]
+    )
 
 
 @dataclass
 class _DummyChoice:
-    message: _DummyMessage = _DummyMessage()
+    message: _DummyMessage = field(default_factory=_DummyMessage)
 
 
 class _DummyResponse:

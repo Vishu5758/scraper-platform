@@ -76,17 +76,15 @@ def run_repair_session(
         try:
             source_config = load_source_config(source)
             llm_config = source_config.get("llm", {})
-            
+
             if llm_config.get("enabled", False):
-                from src.agents.llm_patch_generator import generate_repair_patches
-                
                 failure_context = {
                     "html_old": old_html,
                     "html_new": new_html,
                     "old_selectors": selectors,
                     "error_message": "Selector mismatch detected",
                 }
-                
+
                 llm_patches = generate_repair_patches(source, source_config, failure_context)
                 
                 if llm_patches:

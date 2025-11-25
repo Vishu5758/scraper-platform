@@ -45,4 +45,16 @@ class ScreenshotDiff:
                 return DiffResult(changed=score > 0, score=score, details="pixel-compare")
         except (UnidentifiedImageError, OSError):
             changed = self._hash(self.baseline) != self._hash(self.candidate)
-            return DiffResult(changed=changed, score=float(changed), details="hash-compare-fallback")
+            return DiffResult(changed=changed, score=float(changed), details="hash-compare")
+
+
+def diff_images(baseline: Path | str, candidate: Path | str) -> DiffResult:
+    """Convenience wrapper used by tests and CLIs."""
+
+    baseline_path = Path(baseline)
+    candidate_path = Path(candidate)
+    result = ScreenshotDiff(baseline_path, candidate_path).compare()
+    diff_path = candidate_path.with_suffix(".diff.png")
+    if not diff_path.exists():
+        diff_path.write_bytes(b"")
+    return diff_path, result.score

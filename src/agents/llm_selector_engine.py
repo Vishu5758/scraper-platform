@@ -9,10 +9,17 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from src.common.config_loader import load_source_config as _load_source_config
 from src.common.logging_utils import get_logger
 from src.processors.llm.llm_client import LLMClient, get_llm_client_from_config
 
 log = get_logger("llm-selector-engine")
+
+
+def load_source_config(source: str) -> dict:
+    """Thin wrapper so tests can patch source config loading."""
+
+    return _load_source_config(source)
 
 
 def extract_selectors_with_llm(

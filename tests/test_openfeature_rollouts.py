@@ -77,5 +77,10 @@ def test_default_catalog_flags_are_exposed():
 
 
 def test_env_overrides_apply():
+    original = os.environ.get("FEATURE_FLAGS")
     os.environ["FEATURE_FLAGS"] = '{"pcid.vector_store.similarity_fallback": false}'
     assert is_enabled("pcid.vector_store.similarity_fallback") is False
+    if original is not None:
+        os.environ["FEATURE_FLAGS"] = original
+    else:
+        os.environ.pop("FEATURE_FLAGS", None)
