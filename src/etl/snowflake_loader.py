@@ -28,8 +28,17 @@ def load_to_snowflake(
         SNOWFLAKE_SCHEMA, SNOWFLAKE_WAREHOUSE env vars.
       - snowflake-connector-python installed.
     """
-    if snowflake is None:
-        raise RuntimeError("snowflake-connector-python not installed")
+    try:
+        rows_list: List[Dict[str, Any]] = list(rows)
+    except Exception as exc:
+        log.error("Failed to materialize rows for Snowflake load", extra={"error": str(exc)})
+        return 0
+    if not rows_list:
+        return 0
+
+    if dry_run:
+        log.info("Snowflake dry-run: table=%s, rows=%d", table, len(rows_list))
+        return len(rows_list)
 
     cfg = {
         "user": os.getenv("SNOWFLAKE_USER"),
@@ -42,13 +51,8 @@ def load_to_snowflake(
     if not all(cfg.values()):
         raise RuntimeError("Snowflake env vars not fully configured")
 
-    rows_list: List[Dict[str, Any]] = list(rows)
-    if not rows_list:
-        return 0
-
-    if dry_run:
-        log.info("Snowflake dry-run: table=%s, rows=%d", table, len(rows_list))
-        return len(rows_list)
+    if snowflake is None:
+        raise RuntimeError("snowflake-connector-python not installed")
 
     cols = sorted({k for r in rows_list for k in r.keys()})
     placeholders = ", ".join(["%s"] * len(cols))

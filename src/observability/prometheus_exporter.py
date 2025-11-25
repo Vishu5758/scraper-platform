@@ -110,6 +110,8 @@ def create_metrics(*, registry: Optional[CollectorRegistry] = None) -> Dict[str,
             ["source"],
             registry=reg,  # type: ignore[arg-type]
         )
+        runs_total = runs_total.labels(source="default")
+        runs_failed = runs_failed.labels(source="default")
     else:
         runs_total = _NoopCounter()
         runs_failed = _NoopCounter()

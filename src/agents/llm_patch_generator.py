@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 
 from src.common.logging_utils import get_logger
 from src.processors.llm.llm_client import LLMClient, get_llm_client_from_config
+from src.agents.llm_selector_engine import repair_selectors_with_llm
 
 log = get_logger("llm-patch-generator")
 
@@ -47,8 +48,6 @@ def generate_selector_patch_with_llm(
     Returns:
         Updated selectors dict
     """
-    from src.agents.llm_selector_engine import repair_selectors_with_llm
-
     fields = list(old_selectors.keys())
     return repair_selectors_with_llm(html_old, html_new, old_selectors, fields, llm_client)
 

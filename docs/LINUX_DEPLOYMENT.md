@@ -13,8 +13,8 @@ The scraper-platform-v5.0 is **fully compatible with Linux servers**. This guide
 - **Docker Support**: Full Docker Compose setup for Linux ✅
 
 ### Platform-Specific Files
-- `setup_and_run_alfabeta.bat` - Windows-only (optional)
-- `setup_and_run_alfabeta.sh` - Linux equivalent (created)
+- `scripts/setup_and_run_alfabeta.bat` - Windows-only (optional)
+- `scripts/setup_and_run_alfabeta.sh` - Linux equivalent (created)
 
 ## Prerequisites
 
@@ -199,7 +199,7 @@ sudo systemctl status scraper-api
 ### 1. File Permissions
 ```bash
 # Ensure proper permissions
-chmod +x setup_and_run_alfabeta.sh
+chmod +x scripts/setup_and_run_alfabeta.sh
 chmod -R 755 sessions/ output/ logs/
 ```
 
@@ -258,7 +258,7 @@ sudo chmod +x /usr/local/bin/chromedriver
 ```bash
 # Fix permissions
 sudo chown -R scraper:scraper /opt/scraper-platform
-chmod +x setup_and_run_alfabeta.sh
+chmod +x scripts/setup_and_run_alfabeta.sh
 ```
 
 #### 2. Database Connection Failed

@@ -24,8 +24,11 @@ class RAGPipeline:
             return f"[fallback] {context[:200]}"
         except Exception as exc:
             return f"[unexpected error invoking dspy: {exc}]"
-        prompt = dspy.Prompt(f"Context: {context}\n\nQuestion: {query}\nAnswer:")
-        return str(prompt)
+        try:
+            prompt = dspy.Prompt(f"Context: {context}\n\nQuestion: {query}\nAnswer:")
+            return str(prompt)
+        except Exception as exc:
+            return f"[fallback] {context[:200]} ({exc})"
 
     def _generate_with_langgraph(self, query: str, context: str) -> str:
         try:

@@ -18,7 +18,7 @@ This repository contains the v5.0-ready scaffold for the scraper platform, inclu
 3. (Optional) Install frontend deps: `cd frontend-dashboard && npm install`.
 4. Run API locally: `uvicorn src.api.app:app --reload --host 0.0.0.0 --port 8000`.
 5. Run frontend: `npm run dev -- --host --port 4173` from `frontend-dashboard/`.
-6. Or use the setup script: `chmod +x setup_and_run_alfabeta.sh && ./setup_and_run_alfabeta.sh`
+6. Or use the setup script: `chmod +x scripts/setup_and_run_alfabeta.sh && ./scripts/setup_and_run_alfabeta.sh`
 
 ### Windows
 1. Copy `.env.example` to `.env` and adjust secrets.
@@ -26,7 +26,7 @@ This repository contains the v5.0-ready scaffold for the scraper platform, inclu
 3. (Optional) Install frontend deps: `cd frontend-dashboard && npm install`.
 4. Run API locally: `uvicorn src.api.app:app --reload --host 0.0.0.0 --port 8000`.
 5. Run frontend: `npm run dev -- --host --port 4173` from `frontend-dashboard/`.
-6. Or use the setup script: `setup_and_run_alfabeta.bat`
+6. Or use the setup script: `scripts/setup_and_run_alfabeta.bat`
 
 ## Docker
 - `docker-compose.yml` runs the API with Postgres and Redis.

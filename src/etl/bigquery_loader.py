@@ -27,16 +27,20 @@ def load_to_bigquery(
 
     If dependencies are missing, raises RuntimeError to avoid fake success.
     """
-    if bigquery is None:
-        raise RuntimeError("google-cloud-bigquery not installed")
-
-    rows_list: List[Dict[str, Any]] = list(rows)
+    try:
+        rows_list: List[Dict[str, Any]] = list(rows)
+    except Exception as exc:
+        log.error("Failed to materialize rows for BigQuery load", extra={"error": str(exc)})
+        return 0
     if not rows_list:
         return 0
 
     if dry_run:
         log.info("BigQuery dry-run: table=%s, rows=%d", table_id, len(rows_list))
         return len(rows_list)
+
+    if bigquery is None:
+        raise RuntimeError("google-cloud-bigquery not installed")
 
     client = bigquery.Client()
     errors = client.insert_rows_json(table_id, rows_list)

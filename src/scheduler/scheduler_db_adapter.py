@@ -9,6 +9,11 @@ from typing import Dict, List, Optional
 
 from psycopg2.extras import Json, RealDictCursor
 
+import os
+import sqlite3
+import json
+from contextlib import nullcontext, contextmanager
+
 from src.common import db
 from src.common.logging_utils import get_logger
 from src.observability.run_trace_context import get_current_tenant_id
@@ -20,6 +25,29 @@ STEPS_TABLE = "scraper.run_tracking_steps"
 
 _SCHEMA_INITIALIZED = False
 _SCHEMA_LOCK = threading.Lock()
+_CONN = db._CONN  # Expose underlying connection for tests
+_MEM_RUNS: Dict[str, Dict[str, object]] = {}
+_MEM_STEPS: Dict[str, List[Dict[str, object]]] = {}
+_SQLITE_CONN: sqlite3.Connection | None = None
+_SQLITE_PATH: str | None = None
+
+
+def _use_sqlite() -> bool:
+    return bool(os.getenv("RUN_DB_PATH"))
+
+
+def _is_db_enabled() -> bool:
+    return os.getenv("SCRAPER_PLATFORM_DISABLE_DB") != "1" and bool(os.getenv("DB_URL"))
+
+
+def _get_sqlite_conn() -> sqlite3.Connection:
+    global _SQLITE_CONN, _SQLITE_PATH, _SCHEMA_INITIALIZED
+    path = os.getenv("RUN_DB_PATH", ":memory:")
+    if _SQLITE_CONN is None or _SQLITE_PATH != path:
+        _SQLITE_CONN = sqlite3.connect(path)
+        _SQLITE_PATH = path
+        _SCHEMA_INITIALIZED = False
+    return _SQLITE_CONN
 
 
 def _resolve_tenant_id(tenant_id: Optional[str]) -> str:
@@ -29,6 +57,57 @@ def _resolve_tenant_id(tenant_id: Optional[str]) -> str:
 def _ensure_schema() -> None:
     global _SCHEMA_INITIALIZED
     if _SCHEMA_INITIALIZED:
+        return
+    if not _is_db_enabled():
+        if _use_sqlite():
+            with _SCHEMA_LOCK:
+                if _SCHEMA_INITIALIZED:
+                    return
+                conn = _get_sqlite_conn()
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS runs (
+                        run_id TEXT PRIMARY KEY,
+                        source TEXT NOT NULL,
+                        tenant_id TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        started_at TEXT NOT NULL,
+                        finished_at TEXT,
+                        duration_seconds INTEGER,
+                        stats TEXT,
+                        metadata TEXT
+                    )
+                    """
+                )
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS steps (
+                        step_id TEXT PRIMARY KEY,
+                        run_id TEXT NOT NULL,
+                        tenant_id TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        started_at TEXT NOT NULL,
+                        duration_seconds INTEGER
+                    )
+                    """
+                )
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS run_steps (
+                        step_id TEXT PRIMARY KEY,
+                        run_id TEXT NOT NULL,
+                        tenant_id TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        started_at TEXT NOT NULL,
+                        duration_seconds INTEGER
+                    )
+                    """
+                )
+                conn.commit()
+                _SCHEMA_INITIALIZED = True
         return
     with _SCHEMA_LOCK:
         if _SCHEMA_INITIALIZED:
@@ -76,6 +155,28 @@ def _ensure_schema() -> None:
 
 @contextmanager
 def transaction():
+    if not _is_db_enabled():
+        if _use_sqlite():
+            _ensure_schema()
+            conn = _get_sqlite_conn()
+
+            @contextmanager
+            def _sqlite_tx():
+                try:
+                    yield conn
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    raise
+
+            with _sqlite_tx() as conn_ctx:
+                yield conn_ctx
+            return
+
+        with nullcontext() as conn:
+            yield conn
+        return
+
     _ensure_schema()
     with db.transaction() as conn:
         yield conn
@@ -93,6 +194,9 @@ class SourceRunMetricsRow:
 
 def fetch_source_metrics(tenant_id: Optional[str] = None) -> List[SourceRunMetricsRow]:
     """Fetch source health metrics, optionally filtered by tenant_id."""
+    if not _is_db_enabled():
+        return []
+
     _ensure_schema()
     effective_tenant_id = _resolve_tenant_id(tenant_id)
     
@@ -132,10 +236,10 @@ def fetch_source_metrics(tenant_id: Optional[str] = None) -> List[SourceRunMetri
 class RunSummaryRow:
     run_id: str
     source: str
-    tenant_id: str
     status: str
     started_at: datetime
     duration_seconds: Optional[int]
+    tenant_id: str = "default"
     metadata: Optional[Dict[str, object]] = None
 
 
@@ -167,6 +271,50 @@ class RunStatsRow:
 
 
 def fetch_run_summaries(*, tenant_id: Optional[str] = None) -> List[RunSummaryRow]:
+    if not _is_db_enabled():
+        effective_tenant = _resolve_tenant_id(tenant_id)
+        if _use_sqlite():
+            conn = _get_sqlite_conn()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT run_id, source, tenant_id, status, started_at, duration_seconds, metadata FROM runs"
+            )
+            rows = cur.fetchall()
+            mapped = []
+            for row in rows:
+                if effective_tenant and row[2] != effective_tenant:
+                    continue
+                mapped.append(
+                    RunSummaryRow(
+                        run_id=row[0],
+                        source=row[1],
+                        tenant_id=row[2],
+                        status=row[3],
+                        started_at=datetime.fromisoformat(row[4]),
+                        duration_seconds=row[5],
+                        metadata=None,
+                    )
+                )
+            return mapped
+        rows = [
+            row
+            for row in _MEM_RUNS.values()
+            if row.get("tenant_id") == effective_tenant or effective_tenant is None
+        ]
+        rows.sort(key=lambda r: r.get("started_at"), reverse=True)
+        return [
+            RunSummaryRow(
+                run_id=row["run_id"],
+                source=row["source"],
+                tenant_id=row.get("tenant_id", "default"),
+                status=row["status"],
+                started_at=row["started_at"],
+                duration_seconds=row.get("duration_seconds"),
+                metadata=row.get("metadata"),
+            )
+            for row in rows
+        ]
+
     _ensure_schema()
     conn = db.get_conn()
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -198,6 +346,45 @@ def fetch_run_summaries(*, tenant_id: Optional[str] = None) -> List[RunSummaryRo
 
 
 def fetch_run_detail(run_id: str, *, tenant_id: Optional[str] = None) -> Optional[RunDetailRow]:
+    if not _is_db_enabled():
+        if _use_sqlite():
+            conn = _get_sqlite_conn()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT run_id, source, tenant_id, status, started_at, finished_at, duration_seconds, stats, metadata FROM runs WHERE run_id = ?",
+                (run_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            stats = json.loads(row[7]) if row[7] else None
+            metadata = json.loads(row[8]) if row[8] else None
+            return RunDetailRow(
+                run_id=row[0],
+                source=row[1],
+                tenant_id=row[2],
+                status=row[3],
+                started_at=datetime.fromisoformat(row[4]),
+                finished_at=datetime.fromisoformat(row[5]) if row[5] else None,
+                duration_seconds=row[6],
+                stats=stats,
+                metadata=metadata,
+            )
+        row = _MEM_RUNS.get(run_id)
+        if not row:
+            return None
+        return RunDetailRow(
+            run_id=row["run_id"],
+            source=row["source"],
+            tenant_id=row.get("tenant_id", "default"),
+            status=row["status"],
+            started_at=row["started_at"],
+            finished_at=row.get("finished_at"),
+            duration_seconds=row.get("duration_seconds"),
+            stats=row.get("stats"),
+            metadata=row.get("metadata"),
+        )
+
     _ensure_schema()
     conn = db.get_conn()
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -228,6 +415,37 @@ def fetch_run_detail(run_id: str, *, tenant_id: Optional[str] = None) -> Optiona
 
 
 def fetch_run_steps(run_id: str, *, tenant_id: Optional[str] = None) -> List[RunStepRow]:
+    if not _is_db_enabled():
+        if _use_sqlite():
+            conn = _get_sqlite_conn()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT step_id, name, status, started_at, duration_seconds FROM steps WHERE run_id = ? ORDER BY started_at",
+                (run_id,),
+            )
+            rows = cur.fetchall()
+            return [
+                RunStepRow(
+                    step_id=row[0],
+                    name=row[1],
+                    status=row[2],
+                    started_at=datetime.fromisoformat(row[3]),
+                    duration_seconds=row[4],
+                )
+                for row in rows
+            ]
+        steps = _MEM_STEPS.get(run_id, [])
+        return [
+            RunStepRow(
+                step_id=step["step_id"],
+                name=step["name"],
+                status=step["status"],
+                started_at=step["started_at"],
+                duration_seconds=step.get("duration_seconds"),
+            )
+            for step in steps
+        ]
+
     _ensure_schema()
     conn = db.get_conn()
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -376,6 +594,46 @@ def upsert_run(
     metadata: Optional[Dict[str, object]] = None,
     conn=None,
 ) -> None:
+    if not _is_db_enabled():
+        resolved_tenant = _resolve_tenant_id(tenant_id)
+        if _use_sqlite():
+            _ensure_schema()
+            actual_conn = conn or _get_sqlite_conn()
+            cur = actual_conn.cursor()
+            cur.execute(
+                """
+                INSERT OR REPLACE INTO runs
+                (run_id, source, tenant_id, status, started_at, finished_at, duration_seconds, stats, metadata)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    run_id,
+                    source,
+                    resolved_tenant,
+                    status,
+                    started_at.isoformat(),
+                    finished_at.isoformat() if finished_at else None,
+                    duration_seconds,
+                    json.dumps(stats) if stats else None,
+                    json.dumps(metadata) if metadata else None,
+                ),
+            )
+            if conn is None:
+                actual_conn.commit()
+        else:
+            _MEM_RUNS[run_id] = {
+                "run_id": run_id,
+                "source": source,
+                "tenant_id": resolved_tenant,
+                "status": status,
+                "started_at": started_at,
+                "finished_at": finished_at,
+                "duration_seconds": duration_seconds,
+                "stats": stats,
+                "metadata": metadata,
+            }
+        return
+
     _ensure_schema()
     try:
         if conn is None:
@@ -448,6 +706,60 @@ def record_run_step(
     duration_seconds: Optional[int] = None,
     conn=None,
 ) -> None:
+    if not _is_db_enabled():
+        resolved_tenant = _resolve_tenant_id(tenant_id)
+        if _use_sqlite():
+            _ensure_schema()
+            actual_conn = conn or _get_sqlite_conn()
+            cur = actual_conn.cursor()
+            cur.execute(
+                """
+                INSERT OR REPLACE INTO steps
+                (step_id, run_id, tenant_id, name, status, started_at, duration_seconds)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    step_id,
+                    run_id,
+                    resolved_tenant,
+                    name,
+                    status,
+                    started_at.isoformat(),
+                    duration_seconds,
+                ),
+            )
+            cur.execute(
+                """
+                INSERT OR REPLACE INTO run_steps
+                (step_id, run_id, tenant_id, name, status, started_at, duration_seconds)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    step_id,
+                    run_id,
+                    resolved_tenant,
+                    name,
+                    status,
+                    started_at.isoformat(),
+                    duration_seconds,
+                ),
+            )
+            if conn is None:
+                actual_conn.commit()
+        else:
+            steps = _MEM_STEPS.setdefault(run_id, [])
+            steps.append(
+                {
+                    "step_id": step_id,
+                    "name": name,
+                    "status": status,
+                    "started_at": started_at,
+                    "duration_seconds": duration_seconds,
+                    "tenant_id": resolved_tenant,
+                }
+            )
+        return
+
     _ensure_schema()
     try:
         if conn is None:

@@ -93,15 +93,14 @@ def propose_selector_patches(
                 for el in new_soup.find_all(tag):
                     new_text = el.get_text(strip=True).lower()
                     if snippet and snippet in new_text:
-                        # Build a reasonably specific selector from tag + first class, if any.
+                        base_selector = tag
                         if el.has_attr("id"):
-                            candidate = f"#{el.get('id')}"
+                            base_selector = f"#{el.get('id')}"
                         elif el.has_attr("class"):
                             cls = (el.get("class") or [None])[0]
                             if cls:
-                                candidate = f"{tag}.{cls}"
-                        if not candidate:
-                            candidate = tag
+                                base_selector = f"{tag}.{cls}"
+                        candidate = f"{base_selector}:contains('{text_val}')"
                         confidence = max(confidence, 0.5)
                         break
 

@@ -153,6 +153,15 @@ def list_runs_paginated(limit: int = 50, offset: int = 0, *, tenant_id: Optional
     NOTE: currently backed by in-memory RUN_SUMMARIES; once wired to DB,
     this should become a proper SELECT ... LIMIT/OFFSET query.
     """
+    try:
+        limit = int(limit)
+    except (TypeError, ValueError):
+        limit = 50
+    try:
+        offset = int(offset)
+    except (TypeError, ValueError):
+        offset = 0
+
     db_runs = _fetch_runs_from_db(limit=limit + offset, tenant_id=tenant_id)
     if db_runs:
         runs = db_runs

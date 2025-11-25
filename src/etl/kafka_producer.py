@@ -57,8 +57,13 @@ def publish_records(
     """
     import os
 
-    if dry_run:
+    try:
         rows_list = list(records)
+    except Exception as exc:
+        log.error("Failed to materialize records for Kafka", extra={"error": str(exc)})
+        return 0
+
+    if dry_run:
         log.info("Kafka dry-run: topic=%s, messages=%d", topic, len(rows_list))
         return len(rows_list)
 
@@ -75,7 +80,7 @@ def publish_records(
             "sasl.password": os.getenv("KAFKA_SASL_PASSWORD", ""),
         })
 
-    return produce_to_kafka(topic, records, config)
+    return produce_to_kafka(topic, rows_list, config)
 
 
 __all__ = ["produce_to_kafka", "publish_records"]

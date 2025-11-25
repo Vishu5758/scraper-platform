@@ -304,7 +304,7 @@
    - **Status:** Enhancement for future
 
 4. **Setup scripts:**
-   - `setup_and_run_alfabeta.sh` / `.bat`: `# TODO: replace these with real site creds`
+   - `scripts/setup_and_run_alfabeta.sh` / `.bat`: `# TODO: replace these with real site creds`
    - **Status:** Expected - users should replace with real credentials
 
 **Summary:** None of these are "platform is broken" issues. They're enhancement hooks or expected user configuration.
