@@ -8,6 +8,7 @@ from typing import Any, Iterable, List, Mapping, MutableMapping, Optional
 
 import yaml
 
+from src.common.config_loader import load_config, load_source_config
 from src.common.logging_utils import get_logger
 from src.common.paths import CONFIG_DIR
 
@@ -125,7 +126,42 @@ def load_agent_configs(
     return defaults, pipelines
 
 
+def run_configured_pipeline(
+    source_name: str,
+    *,
+    env: str | None = None,
+    initial_context: Optional[AgentContext] = None,
+) -> AgentContext:
+    """Run a configured pipeline for a given source using stored configs.
+
+    This is a convenience wrapper for Airflow DAGs and CLIs that need a
+    production-ready entry point without manually constructing the
+    orchestrator or loading YAML files.
+    """
+
+    _, pipelines = load_agent_configs(config_dir=CONFIG_DIR)
+
+    settings = load_config(env=env, config_dir=CONFIG_DIR)
+    source_cfg = load_source_config(source_name, config_dir=CONFIG_DIR)
+
+    register_builtin_agents()
+    orchestrator = AgentOrchestrator(registry, pipelines)
+
+    context = initial_context.copy() if initial_context else AgentContext()
+    context.metadata.setdefault("settings", settings)
+    context.metadata.setdefault("source_config", source_cfg)
+    context.metadata.setdefault("source", source_name)
+
+    return orchestrator.run_pipeline(source_name, context)
+
+
 # Initialize registry with builtins for convenience on import
 register_builtin_agents()
 
-__all__ = ["AgentOrchestrator", "PipelineNotFoundError", "load_agent_configs", "registry"]
+__all__ = [
+    "AgentOrchestrator",
+    "PipelineNotFoundError",
+    "load_agent_configs",
+    "run_configured_pipeline",
+    "registry",
+]
