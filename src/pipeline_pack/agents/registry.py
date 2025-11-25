@@ -51,4 +51,31 @@ def run_pipeline(
     return ctx
 
 
-__all__ = ["AgentRegistry", "run_pipeline"]
+_default_agents_registered = False
+
+
+def register_default_agents(force: bool = False) -> None:
+    """Register built-in agents used by the pipeline pack."""
+
+    global _default_agents_registered
+    if _default_agents_registered and not force:
+        return
+
+    from .db_export_agent import DbExportAgent
+    from .html_parse_agent import HtmlParseAgent
+    from .http_fetch_agent import HttpFetchAgent
+    from .llm_normalizer_agent import LLMNormalizerAgent
+    from .pcid_match_agent import PCIDMatchAgent
+    from .qc_agent import QCAgent
+
+    AgentRegistry.register(HttpFetchAgent.name, HttpFetchAgent)
+    AgentRegistry.register(HtmlParseAgent.name, HtmlParseAgent)
+    AgentRegistry.register(LLMNormalizerAgent.name, LLMNormalizerAgent)
+    AgentRegistry.register(QCAgent.name, QCAgent)
+    AgentRegistry.register(PCIDMatchAgent.name, PCIDMatchAgent)
+    AgentRegistry.register(DbExportAgent.name, DbExportAgent)
+
+    _default_agents_registered = True
+
+
+__all__ = ["AgentRegistry", "run_pipeline", "register_default_agents"]
