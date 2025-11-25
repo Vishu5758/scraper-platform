@@ -1,25 +1,8 @@
-# DB schema for scraper-platform-v4.9
+# Database Notes
 
-Migrations in this directory define the core tables for runs, sessions, drift events,
-quality checks, and replay testing needed by scraper-platform v4.9. Apply them in
-numeric order to initialize a new environment.
+The platform relies on database helpers in `src/db` to manage connections, migrations, and ORM models. When running locally with Docker Compose, databases are provisioned automatically; point the backend to the provided connection strings via environment variables.
 
-Migrations should appear in the following order:
+For production deployments:
 
-001_init.sql
-002_scraper_runs.sql
-003_drift_events.sql
-004_data_quality.sql
-005_incidents.sql
-006_cost_tracking.sql
-007_source_health_daily.sql
-008_proxy_site_status.sql
-009_pcid_master.sql
-010_schema_signatures.sql
-011_change_log.sql
-012_scraper_sessions.sql
-013_scraper_session_events.sql
-014_data_versioning.sql
-015_data_contracts.sql
-016_replay_testing.sql
-017_add_fk_indexes.sql
+- Apply migrations or seed scripts packaged in `scripts/` or `tools/` before enabling schedulers.
+- Keep credentials and secrets outside of the repository, injecting them at runtime through environment variables or secret managers referenced by `src/security`.
