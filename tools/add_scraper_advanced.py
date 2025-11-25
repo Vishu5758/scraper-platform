@@ -60,14 +60,28 @@ def prompt_user(prompt: str, default: Optional[str] = None, validator: Optional[
             print("Input cannot be empty. Please try again.")
 
 
-def collect_scraper_config(source: str, engine: str, requires_login: bool, interactive: bool) -> dict:
+def collect_scraper_config(
+    source: str,
+    engine: str,
+    requires_login: bool,
+    interactive: bool,
+    base_url: Optional[str] = None,
+    login_url: Optional[str] = None,
+    username_prefix: Optional[str] = None,
+    password_prefix: Optional[str] = None,
+) -> dict:
     """Collect scraper configuration from user or use defaults."""
     config = {
-        "base_url": "https://example.com",
-        "login_url": "https://example.com/login",
-        "username_env_prefix": f"{source.upper()}_USER_",
-        "password_env_prefix": f"{source.upper()}_PASS_",
+        "base_url": base_url or "",
+        "login_url": login_url or "",
+        "username_env_prefix": username_prefix or f"{source.upper()}_USER_",
+        "password_env_prefix": password_prefix or f"{source.upper()}_PASS_",
     }
+
+    if not interactive and not config["base_url"]:
+        raise SystemExit(
+            "Missing base URL. Provide --base-url or run with --interactive to enter values."
+        )
     
     if interactive:
         print(f"\n{'='*60}")
@@ -77,15 +91,15 @@ def collect_scraper_config(source: str, engine: str, requires_login: bool, inter
         # Base URL
         config["base_url"] = prompt_user(
             "Enter base URL for the scraper",
-            default=config["base_url"],
+            default=config["base_url"] or "https://",
             validator=validate_url
         )
-        
+
         # Login URL (if login required)
         if requires_login:
             config["login_url"] = prompt_user(
                 "Enter login page URL",
-                default=config["base_url"] + "/login",
+                default=(config["base_url"] + "/login") if config["base_url"] else "https://",
                 validator=validate_url
             )
             
@@ -102,6 +116,12 @@ def collect_scraper_config(source: str, engine: str, requires_login: bool, inter
         
         print(f"\n✓ Configuration collected\n")
     
+    # Non-interactive defaults
+    if not interactive:
+        config["base_url"] = config["base_url"] or ""
+        if requires_login:
+            config["login_url"] = config["login_url"] or (config["base_url"].rstrip("/") + "/login")
+
     return config
 
 
@@ -553,7 +573,7 @@ def create_source_config(source: str, engine: str, requires_login: bool, config:
     print(f"[OK] Created source config: {cfg_path}")
 
 
-def create_selectors_template(source: str) -> None:
+def create_selectors_template(source: str, base_url: str) -> None:
     scraper_dir = PROJECT_ROOT / "src" / "scrapers" / source
     scraper_dir.mkdir(parents=True, exist_ok=True)
 
@@ -563,13 +583,13 @@ def create_selectors_template(source: str) -> None:
         return
 
     selectors_json = textwrap.dedent(
-        """
-        {
-          "login_url": "https://example.com/login",
+        f"""
+        {{
+          "login_url": "{base_url.rstrip('/') + '/login' if base_url else 'https://example.com/login'}",
           "username_selector": "input[name='username']",
           "password_selector": "input[name='password']",
           "submit_selector": "button[type='submit']",
-          "companies_url": "https://example.com/companies",
+          "companies_url": "{base_url.rstrip('/') + '/companies' if base_url else 'https://example.com/companies'}",
           "company_link_selector": "a.company-link",
           "product_link_selector": "a.product-link",
           "product_name_selector": "h1.product-name",
@@ -577,7 +597,7 @@ def create_selectors_template(source: str) -> None:
           "presentation_selector": "div.presentation",
           "price_selector": "div.price",
           "currency_hint": "USD"
-        }
+        }}
         """
     ).strip()
 
@@ -753,6 +773,16 @@ def main():
         action="store_true",
         help="Interactive mode: prompt for configuration values.",
     )
+    parser.add_argument("--base-url", help="Root URL for the scraper (required unless --interactive)")
+    parser.add_argument("--login-url", help="Login URL (only needed if --requires-login)")
+    parser.add_argument(
+        "--username-prefix",
+        help="Environment variable prefix for usernames (default: {SOURCE}_USER_)",
+    )
+    parser.add_argument(
+        "--password-prefix",
+        help="Environment variable prefix for passwords (default: {SOURCE}_PASS_)",
+    )
 
     args = parser.parse_args()
     source = args.source.strip()
@@ -779,19 +809,31 @@ def main():
     print(f"[INFO] Engine: {args.engine}, requires_login={args.requires_login}")
     
     # Collect configuration
-    config = collect_scraper_config(source, args.engine, args.requires_login, args.interactive)
-    
+    config = collect_scraper_config(
+        source,
+        args.engine,
+        args.requires_login,
+        args.interactive,
+        base_url=args.base_url,
+        login_url=args.login_url,
+        username_prefix=args.username_prefix,
+        password_prefix=args.password_prefix,
+    )
+
     # Validate configuration
     if not validate_url(config["base_url"]):
         raise SystemExit(f"Invalid base_url: {config['base_url']}")
-    
+
+    if "example.com" in config["base_url"]:
+        raise SystemExit("base_url cannot be left as an example.com placeholder")
+
     if args.requires_login and not validate_url(config["login_url"]):
         raise SystemExit(f"Invalid login_url: {config['login_url']}")
 
     try:
         create_scraper_package(source, args.engine, args.requires_login, config)
         create_source_config(source, args.engine, args.requires_login, config)
-        create_selectors_template(source)
+        create_selectors_template(source, config["base_url"])
         create_sample_html(source)
         create_dsl_pipeline(source)
         create_plugin_file(source)

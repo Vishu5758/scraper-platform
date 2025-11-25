@@ -186,6 +186,32 @@ class IntegrationService:
             )
             return None, str(exc)
 
+    def fetch_dag_run_conf(self, dag_id: str, dag_run_id: str) -> Optional[Dict[str, Any]]:
+        """Return the DAG run configuration payload from Airflow if available."""
+        if not self.airflow_base_url:
+            log.warning("Cannot fetch DAG run conf: AIRFLOW_BASE_URL not set")
+            return None
+
+        url = f"{self.airflow_base_url}/api/v1/dags/{dag_id}/dagRuns/{dag_run_id}"
+        try:
+            resp = requests.get(url, timeout=10, **self.airflow_auth)
+            resp.raise_for_status()
+            data = resp.json()
+            conf = data.get("conf")
+            if not isinstance(conf, dict):
+                log.warning(
+                    "Airflow DAG run conf missing or not a mapping",
+                    extra={"dag_id": dag_id, "dag_run_id": dag_run_id},
+                )
+                return None
+            return conf
+        except Exception as exc:
+            log.error(
+                "Failed to fetch Airflow DAG run conf",
+                extra={"dag_id": dag_id, "dag_run_id": dag_run_id, "error": str(exc)},
+            )
+            return None
+
     def update_jira_on_trigger(
         self, issue_key: str, dag_id: str, dag_run_id: str
     ) -> None:

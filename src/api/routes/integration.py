@@ -98,28 +98,42 @@ async def handle_airflow_callback(
             detail="Integration service not configured",
         )
 
-    # Extract Jira issue key from DAG run conf (would need to query Airflow API)
-    # For now, we'll expect it in the payload or extract from run metadata
-    # This is a simplified version - in production you'd query Airflow for the conf
-
     # Update Jira
     try:
-        # In a real implementation, you'd extract jira_issue_key from Airflow DAG run conf
-        # For now, we'll log and return success
-        log.info(
-            "Received Airflow callback",
-            extra={
-                "dag_id": payload.dag_id,
-                "dag_run_id": payload.dag_run_id,
-                "status": payload.run_status,
-                "run_id": payload.run_id,
-            },
-        )
+        log_context = {
+            "dag_id": payload.dag_id,
+            "dag_run_id": payload.dag_run_id,
+            "status": payload.run_status,
+            "run_id": payload.run_id,
+        }
 
-        # TODO: Query Airflow API to get DAG run conf and extract jira_issue_key
-        # Then call: service.update_jira_on_completion(...)
+        jira_issue_key: str | None = None
+        dag_conf = service.fetch_dag_run_conf(payload.dag_id, payload.dag_run_id)
+        if dag_conf:
+            jira_issue_key = dag_conf.get("jira_issue_key") or dag_conf.get("issue_key")
+            if jira_issue_key:
+                log_context["jira_issue_key"] = jira_issue_key
+        else:
+            log_context["dag_conf_lookup"] = "missing"
 
-        return {"status": "success", "message": "Callback processed"}
+        log.info("Received Airflow callback", extra=log_context)
+
+        if jira_issue_key:
+            service.update_jira_on_completion(
+                issue_key=jira_issue_key,
+                status=payload.run_status,
+                run_id=payload.run_id,
+                dag_run_id=payload.dag_run_id,
+                item_count=payload.item_count,
+                error=payload.error,
+            )
+        else:
+            log.warning(
+                "Unable to update Jira: issue key not found in DAG run conf",
+                extra={"dag_id": payload.dag_id, "dag_run_id": payload.dag_run_id},
+            )
+
+        return {"status": "success", "message": "Callback processed", "jira_issue_key": jira_issue_key}
 
     except Exception as exc:
         log.error("Error handling Airflow callback", exc_info=True)
